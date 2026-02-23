@@ -1,0 +1,7 @@
+board:
+  name: genio_720_evk
+  full_name: GENION 720 EVK (6*Cortex-A55 and 2*Cortex-A78)
+  vendor: mediatek
+  socs:
+  - name: mt8391
+

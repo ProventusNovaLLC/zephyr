@@ -167,9 +167,9 @@
 		status = "disabled";
 	};
 
-	uart1: uart@11001200 {
+	uart1: uart@11002000 {
 		compatible = "mediatek,mt8370-uart";
-		reg = <0x11001200 0x1000>;
+		reg = <0x11002000 0x1000>;
 		interrupt-parent = <&gic>;
 		interrupts = <GIC_SPI 142 IRQ_TYPE_LEVEL_LOW IRQ_DEFAULT_PRIORITY>;
         clock-frequency = <26000000>;

@@ -15,3 +15,11 @@ config PINCTRL_MT8370
     depends on DT_HAS_MEDIATEK_MT8370_PINCTRL_ENABLED
 	help
 	  Enable the MediaTek MT8370 PINCTRL driver.
+
+config PINCTRL_MT8391
+	bool "MediaTek MT8391 PINCTRL driver"
+	default y
+    depends on DT_HAS_MEDIATEK_MT8391_PINCTRL_ENABLED
+	help
+	  Enable the MediaTek MT8391 PINCTRL driver.
+

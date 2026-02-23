@@ -1,0 +1,8 @@
+family:
+- name: mtk-genio
+  series:
+  - name: mt8391
+    socs:
+    - name: mt8391
+      cpuclusters:
+      - name: a55
