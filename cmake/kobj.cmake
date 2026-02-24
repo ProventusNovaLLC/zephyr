@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-find_program(GEN_KOBJECT_LIST NAMES gen_kobject_list gen_kobject_list.py PATHS ${ZEPHYR_BASE}/scripts/build)
+find_program(GEN_KOBJECT_LIST NAMES gen_kobject_list gen_kobject_list.py PATHS ${ZEPHYR_BASE}/scripts/build NO_CMAKE_FIND_ROOT_PATH)
 message(STATUS "Found gen_kobject_list: ${GEN_KOBJECT_LIST}")
 if(GEN_KOBJECT_LIST MATCHES "\.py$")
   set(GEN_KOBJECT_LIST_INTERPRETER ${PYTHON_EXECUTABLE})
