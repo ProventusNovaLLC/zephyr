@@ -80,6 +80,7 @@ LOG_MODULE_REGISTER(spi_mt8391, CONFIG_SPI_LOG_LEVEL);
 struct spi_mt8391_config {
 	DEVICE_MMIO_ROM;
 	const struct pinctrl_dev_config *pincfg;
+	void (*irq_config_func)(const struct device *dev);
 	uint32_t clock_frequency;
 	uint32_t pad_select;
 };
@@ -87,7 +88,28 @@ struct spi_mt8391_config {
 struct spi_mt8391_data {
 	DEVICE_MMIO_RAM;
 	struct spi_context ctx;
+	struct k_sem done_sem;
+	volatile bool awaiting;
 };
+
+/* Completion is signaled through the controller interrupt: the ISR is
+ * the only reader of the read-to-clear status register, which closes
+ * the races a polled model has when FINISH and PAUSE latch with skew
+ * (an early-consumed latch makes the caller reprogram CFG1 while the
+ * engine still runs, wedging it). Spurious or late latches hit an ISR
+ * with no waiter and are cleared harmlessly.
+ */
+static void mt8391_spi_isr(const struct device *dev)
+{
+	struct spi_mt8391_data *data = dev->data;
+	uint32_t status;
+
+	status = sys_read32(DEVICE_MMIO_GET(dev) + SPI_STATUS0_REG);
+	if ((status & (SPI_STATUS_FINISH | SPI_STATUS_PAUSE)) != 0U && data->awaiting) {
+		data->awaiting = false;
+		k_sem_give(&data->done_sem);
+	}
+}
 
 static void mt8391_spi_reset(const struct device *dev)
 {
@@ -168,19 +190,17 @@ static int mt8391_spi_configure(const struct device *dev, const struct spi_confi
 
 static int mt8391_spi_wait_chunk(const struct device *dev)
 {
-	uint32_t status;
-	int32_t budget = MTK_SPI_POLL_TIMEOUT_US;
+	struct spi_mt8391_data *data = dev->data;
 
-	while (budget > 0) {
-		status = sys_read32(DEVICE_MMIO_GET(dev) + SPI_STATUS0_REG);
-		if ((status & (SPI_STATUS_FINISH | SPI_STATUS_PAUSE)) != 0U) {
-			return 0;
-		}
-		k_busy_wait(1);
-		budget--;
+	if (k_sem_take(&data->done_sem, K_USEC(MTK_SPI_POLL_TIMEOUT_US)) != 0) {
+		uint32_t status = sys_read32(DEVICE_MMIO_GET(dev) + SPI_STATUS0_REG);
+
+		data->awaiting = false;
+		LOG_ERR("Completion IRQ timed out (STATUS0 now 0x%02x)", status);
+		return -ETIMEDOUT;
 	}
 
-	return -ETIMEDOUT;
+	return 0;
 }
 
 static void mt8391_spi_setup_chunk(const struct device *dev, uint32_t len)
@@ -210,8 +230,12 @@ static int mt8391_spi_chunk(const struct device *dev, uint32_t len)
 
 	mt8391_spi_setup_chunk(dev, len);
 
-	/* Drain any stale completion status before arming. */
+	/* Drain any stale completion status, then arm the ISR waiter
+	 * before starting the engine.
+	 */
 	(void)sys_read32(DEVICE_MMIO_GET(dev) + SPI_STATUS0_REG);
+	k_sem_reset(&data->done_sem);
+	data->awaiting = true;
 
 	for (i = 0; i < nwords; i++) {
 		word = 0U;
@@ -237,7 +261,7 @@ static int mt8391_spi_chunk(const struct device *dev, uint32_t len)
 
 	ret = mt8391_spi_wait_chunk(dev);
 	if (ret != 0) {
-		LOG_ERR("Transfer chunk timed out (len %u)", len);
+		LOG_ERR("Transfer chunk failed (len %u)", len);
 		return ret;
 	}
 
@@ -351,6 +375,9 @@ static int mt8391_spi_init(const struct device *dev)
 		return ret;
 	}
 
+	k_sem_init(&data->done_sem, 0, 1);
+	cfg->irq_config_func(dev);
+
 	sys_write32(cfg->pad_select, DEVICE_MMIO_GET(dev) + SPI_PAD_SEL_REG);
 	mt8391_spi_reset(dev);
 
@@ -361,6 +388,12 @@ static int mt8391_spi_init(const struct device *dev)
 
 #define SPI_MT8391_INIT(n)                                                                         \
 	PINCTRL_DT_INST_DEFINE(n);                                                                 \
+	static void spi_mt8391_irq_config_##n(const struct device *dev)                            \
+	{                                                                                          \
+		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), mt8391_spi_isr,             \
+			    DEVICE_DT_INST_GET(n), 0);                                             \
+		irq_enable(DT_INST_IRQN(n));                                                       \
+	}                                                                                          \
 	static struct spi_mt8391_data spi_mt8391_data_##n = {                                      \
 		SPI_CONTEXT_INIT_LOCK(spi_mt8391_data_##n, ctx),                                   \
 		SPI_CONTEXT_INIT_SYNC(spi_mt8391_data_##n, ctx),                                   \
@@ -369,6 +402,7 @@ static int mt8391_spi_init(const struct device *dev)
 	static const struct spi_mt8391_config spi_mt8391_config_##n = {                            \
 		DEVICE_MMIO_ROM_INIT(DT_DRV_INST(n)),                                              \
 		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                       \
+		.irq_config_func = spi_mt8391_irq_config_##n,                                      \
 		.clock_frequency = DT_INST_PROP(n, clock_frequency),                               \
 		.pad_select = DT_INST_PROP(n, mediatek_pad_select),                                \
 	};                                                                                         \

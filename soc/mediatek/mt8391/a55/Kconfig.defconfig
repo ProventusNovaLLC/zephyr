@@ -16,8 +16,10 @@ config FLASH_BASE_ADDRESS
 config GIC_SAFE_CONFIG
 	default y
 
+# Cover the peripheral SPIs actually used on this SoC: the SPI1
+# controller interrupt is GIC INTID 492 (SPI 460).
 config NUM_IRQS
-	default 450
+	default 512
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
 	default 8000000
