@@ -7,11 +7,21 @@
 #define DT_DRV_COMPAT mediatek_mt8391_gpio
 
 
+#include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/gpio/gpio_utils.h>
 #include <zephyr/drivers/interrupt_controller/intc_mt8370_eint.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/sys/slist.h>
+
+/* Edge-interrupt emulation poll period. On MT8391 (mt8189 silicon) the
+ * EINT hardware is split across five per-pad-cluster instances sharing
+ * one GIC interrupt that the Linux root cell depends on, so this driver
+ * detects edges by polling DIN instead of claiming the EINT block.
+ * See eint_mtk_configure() for the (currently unused) register-level
+ * trigger plumbing kept for a future dedicated-EINT port.
+ */
+#define GPIO_MTK_POLL_PERIOD K_MSEC(1)
 
 
 #define GPIO_OFFSET_DIN_0				0x0200
@@ -184,6 +194,11 @@ typedef struct {
 	DEVICE_MMIO_NAMED_RAM(reg_base);
 	eint_mtk_callback_t eint_callback;
 	sys_slist_t gpio_callbacks;
+	const struct device *poll_dev;
+	struct k_timer poll_timer;
+	uint32_t poll_rise;
+	uint32_t poll_fall;
+	uint32_t poll_last;
 } gpio_mtk_data_t;
 
 static int gpio_mtk_pin_configure(const struct device *dev, gpio_pin_t pin, gpio_flags_t flags);
@@ -299,36 +314,75 @@ static int gpio_mtk_port_toggle_bits(const struct device *dev, gpio_port_pins_t 
 	return 0;
 }
 
+static void gpio_mtk_poll_expiry(struct k_timer *timer)
+{
+	gpio_mtk_data_t *gpio_data = CONTAINER_OF(timer, gpio_mtk_data_t, poll_timer);
+	const struct device *dev = gpio_data->poll_dev;
+	gpio_port_value_t val = 0;
+	uint32_t fired;
+
+	gpio_mtk_port_get_raw(dev, &val);
+
+	fired = (val ^ gpio_data->poll_last) &
+		((gpio_data->poll_rise & val) | (gpio_data->poll_fall & ~val));
+	gpio_data->poll_last = val;
+
+	if (fired != 0U) {
+		gpio_fire_callbacks(&(gpio_data->gpio_callbacks), dev, fired);
+	}
+}
+
 static int gpio_mtk_pin_interrupt_configure(const struct device *dev, gpio_pin_t pin,
 					    enum gpio_int_mode mode, enum gpio_int_trig trig)
 {
-	const gpio_mtk_config_t *gpio_config = dev->config;
-	uint8_t line = (gpio_config->idx * 32) + pin;
-	eint_mtk_trigger_t eint_trig;
-	int ret;
+	gpio_mtk_data_t *gpio_data = dev->data;
+	uint32_t bit = BIT(pin);
+	gpio_port_value_t val = 0;
+	bool was_idle = ((gpio_data->poll_rise | gpio_data->poll_fall) == 0U);
 
 	if (mode == GPIO_INT_MODE_DISABLED) {
-		return eint_mtk_disable(gpio_config->eint_dev, line);
+		gpio_data->poll_rise &= ~bit;
+		gpio_data->poll_fall &= ~bit;
+		if ((gpio_data->poll_rise | gpio_data->poll_fall) == 0U) {
+			k_timer_stop(&(gpio_data->poll_timer));
+		}
+		return 0;
 	}
 
-	if (trig == GPIO_INT_TRIG_BOTH) {
+	/* Level triggers would re-fire continuously under edge emulation. */
+	if (mode != GPIO_INT_MODE_EDGE) {
 		return -ENOTSUP;
 	}
 
-	if (mode == GPIO_INT_MODE_EDGE) {
-		eint_trig = (trig == GPIO_INT_TRIG_HIGH) ? EINT_MTK_TRIG_EDGE_RISING
-							 : EINT_MTK_TRIG_EDGE_FALLING;
-	} else {
-		eint_trig = (trig == GPIO_INT_TRIG_HIGH) ? EINT_MTK_TRIG_LEVEL_HIGH
-							 : EINT_MTK_TRIG_LEVEL_LOW;
+	switch (trig) {
+	case GPIO_INT_TRIG_HIGH:
+		gpio_data->poll_rise |= bit;
+		gpio_data->poll_fall &= ~bit;
+		break;
+	case GPIO_INT_TRIG_LOW:
+		gpio_data->poll_rise &= ~bit;
+		gpio_data->poll_fall |= bit;
+		break;
+	case GPIO_INT_TRIG_BOTH:
+		gpio_data->poll_rise |= bit;
+		gpio_data->poll_fall |= bit;
+		break;
+	default:
+		return -ENOTSUP;
 	}
 
-	ret = eint_mtk_configure(gpio_config->eint_dev, line, eint_trig);
-	if (ret != 0) {
-		return ret;
+	/* Seed the edge detector with the current level so enabling the
+	 * interrupt does not fire a stale transition.
+	 */
+	gpio_mtk_port_get_raw(dev, &val);
+	gpio_data->poll_last = (gpio_data->poll_last & ~bit) | (val & bit);
+
+	if (was_idle) {
+		k_timer_start(&(gpio_data->poll_timer), GPIO_MTK_POLL_PERIOD,
+			      GPIO_MTK_POLL_PERIOD);
 	}
 
-	return eint_mtk_enable(gpio_config->eint_dev, line);
+	return 0;
 }
 
 static int gpio_mtk_manage_callback(const struct device *dev, struct gpio_callback *callback,
@@ -363,6 +417,9 @@ static int gpio_mtk_init(const struct device *dev)
 	DEVICE_MMIO_NAMED_MAP(dev, reg_base, K_MEM_CACHE_NONE);
 
 	sys_slist_init(&(gpio_data->gpio_callbacks));
+
+	gpio_data->poll_dev = dev;
+	k_timer_init(&(gpio_data->poll_timer), gpio_mtk_poll_expiry, NULL);
 
 	/* Add the EINT driver callback. */
 	ret = eint_mtk_init_callback(&(gpio_data->eint_callback), (gpio_config->idx * 32),
