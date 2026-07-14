@@ -30,6 +30,15 @@ int eint_mtk_init_callback(eint_mtk_callback_t *callback, uint8_t first_line, ui
 int eint_mtk_add_callback(const struct device *dev, eint_mtk_callback_t *callback);
 void eint_mtk_remove_callback(const struct device *dev, eint_mtk_callback_t *callback);
 
+typedef enum {
+	EINT_MTK_TRIG_EDGE_RISING,
+	EINT_MTK_TRIG_EDGE_FALLING,
+	EINT_MTK_TRIG_LEVEL_HIGH,
+	EINT_MTK_TRIG_LEVEL_LOW,
+} eint_mtk_trigger_t;
+
+int eint_mtk_configure(const struct device *dev, uint8_t line, eint_mtk_trigger_t trig);
+
 int eint_mtk_enable(const struct device *dev, uint8_t line);
 int eint_mtk_disable(const struct device *dev, uint8_t line);
 bool eint_mtk_is_enabled(const struct device *dev, uint8_t line);

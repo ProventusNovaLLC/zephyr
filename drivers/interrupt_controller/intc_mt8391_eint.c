@@ -221,6 +221,26 @@ static inline uint32_t offset_mask_clr(uint8_t line)
 	return (EINT_OFFSET_MASK_CLR_0 + (line_to_offset(line)));
 }
 
+static inline uint32_t offset_sens_set(uint8_t line)
+{
+	return (EINT_OFFSET_SENS_SET_0 + (line_to_offset(line)));
+}
+
+static inline uint32_t offset_sens_clr(uint8_t line)
+{
+	return (EINT_OFFSET_SENS_CLR_0 + (line_to_offset(line)));
+}
+
+static inline uint32_t offset_pol_set(uint8_t line)
+{
+	return (EINT_OFFSET_POL_SET_0 + (line_to_offset(line)));
+}
+
+static inline uint32_t offset_pol_clr(uint8_t line)
+{
+	return (EINT_OFFSET_POL_CLR_0 + (line_to_offset(line)));
+}
+
 static void handle_line_isr(const struct device *dev, uint8_t line, uint32_t bit_mask)
 {
 	eint_mtk_data_t *eint_data = dev->data;
@@ -330,6 +350,42 @@ void eint_mtk_remove_callback(const struct device *dev, eint_mtk_callback_t *cal
 	k_spin_unlock(&(eint_data->lock), key);
 }
 
+int eint_mtk_configure(const struct device *dev, uint8_t line, eint_mtk_trigger_t trig)
+{
+	const eint_mtk_config_t *eint_config = dev->config;
+	uint32_t bit = line_to_bit_mask(line);
+
+	if (line >= eint_config->num_lines)
+		return -EINVAL;
+
+	/* SENS: 1 = level sensitive, 0 = edge. POL: 1 = high/rising active. */
+	switch (trig) {
+	case EINT_MTK_TRIG_EDGE_RISING:
+		sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_sens_clr(line)));
+		sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_pol_set(line)));
+		break;
+	case EINT_MTK_TRIG_EDGE_FALLING:
+		sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_sens_clr(line)));
+		sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_pol_clr(line)));
+		break;
+	case EINT_MTK_TRIG_LEVEL_HIGH:
+		sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_sens_set(line)));
+		sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_pol_set(line)));
+		break;
+	case EINT_MTK_TRIG_LEVEL_LOW:
+		sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_sens_set(line)));
+		sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_pol_clr(line)));
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	/* Clear any pending state latched under the old configuration. */
+	sys_write32(bit, (DEVICE_MMIO_GET(dev) + offset_ack(line)));
+
+	return 0;
+}
+
 int eint_mtk_enable(const struct device *dev, uint8_t line)
 {
 	const eint_mtk_config_t *eint_config = dev->config;
@@ -337,7 +393,8 @@ int eint_mtk_enable(const struct device *dev, uint8_t line)
 	if (line >= eint_config->num_lines)
 		return -EINVAL;
 
-	sys_write32(line_to_bit_mask(line), (DEVICE_MMIO_GET(dev) + offset_mask_set(line)));
+	/* MASK bit set = line masked; enabling means clearing the mask bit. */
+	sys_write32(line_to_bit_mask(line), (DEVICE_MMIO_GET(dev) + offset_mask_clr(line)));
 
 	return 0;
 }
@@ -349,7 +406,7 @@ int eint_mtk_disable(const struct device *dev, uint8_t line)
 	if (line >= eint_config->num_lines)
 		return -EINVAL;
 
-	sys_write32(line_to_bit_mask(line), (DEVICE_MMIO_GET(dev) + offset_mask_clr(line)));
+	sys_write32(line_to_bit_mask(line), (DEVICE_MMIO_GET(dev) + offset_mask_set(line)));
 
 	return 0;
 }
@@ -363,9 +420,8 @@ bool eint_mtk_is_enabled(const struct device *dev, uint8_t line)
 		return false;
 
 	val = sys_read32(DEVICE_MMIO_GET(dev) + offset_mask(line));
-	val &= line_to_bit_mask(line);
 
-	return (val != 0);
+	return ((val & line_to_bit_mask(line)) == 0);
 }
 
 #define EINT_DECLARE_CFG(n, IRQ_FUNC_INIT)                      \
