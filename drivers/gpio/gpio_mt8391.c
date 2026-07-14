@@ -302,7 +302,33 @@ static int gpio_mtk_port_toggle_bits(const struct device *dev, gpio_port_pins_t 
 static int gpio_mtk_pin_interrupt_configure(const struct device *dev, gpio_pin_t pin,
 					    enum gpio_int_mode mode, enum gpio_int_trig trig)
 {
-	return 0;
+	const gpio_mtk_config_t *gpio_config = dev->config;
+	uint8_t line = (gpio_config->idx * 32) + pin;
+	eint_mtk_trigger_t eint_trig;
+	int ret;
+
+	if (mode == GPIO_INT_MODE_DISABLED) {
+		return eint_mtk_disable(gpio_config->eint_dev, line);
+	}
+
+	if (trig == GPIO_INT_TRIG_BOTH) {
+		return -ENOTSUP;
+	}
+
+	if (mode == GPIO_INT_MODE_EDGE) {
+		eint_trig = (trig == GPIO_INT_TRIG_HIGH) ? EINT_MTK_TRIG_EDGE_RISING
+							 : EINT_MTK_TRIG_EDGE_FALLING;
+	} else {
+		eint_trig = (trig == GPIO_INT_TRIG_HIGH) ? EINT_MTK_TRIG_LEVEL_HIGH
+							 : EINT_MTK_TRIG_LEVEL_LOW;
+	}
+
+	ret = eint_mtk_configure(gpio_config->eint_dev, line, eint_trig);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return eint_mtk_enable(gpio_config->eint_dev, line);
 }
 
 static int gpio_mtk_manage_callback(const struct device *dev, struct gpio_callback *callback,
