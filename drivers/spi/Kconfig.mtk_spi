@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Proventus Nova
+# SPDX-License-Identifier: Apache-2.0
+
+config SPI_MT8391
+	bool "MediaTek MT8391 SPI controller driver"
+	default y
+	depends on DT_HAS_MEDIATEK_MT8391_SPI_ENABLED
+	select PINCTRL
+	help
+	  Enable the PIO/polling driver for the MediaTek MT8391 (Genio 720)
+	  SPI controller (IPM generation IP, Linux reference spi-mt65xx.c).
+	  Transfers are chunked through the 32-byte FIFO with completion
+	  polled from the status register; no DMA and no interrupts are
+	  used, which keeps the controller self-contained inside a
+	  Jailhouse cell.

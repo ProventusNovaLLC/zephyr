@@ -1,0 +1,27 @@
+# Copyright (c) 2026 Proventus Nova
+# SPDX-License-Identifier: Apache-2.0
+
+description: MediaTek MT8391 SPI controller (IPM generation, PIO/polling operation)
+
+compatible: "mediatek,mt8391-spi"
+
+include: [spi-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clock-frequency:
+    type: int
+    required: true
+    description: |
+      SPI kernel (functional) clock rate in Hz as configured by the SoC
+      clock tree. The SCK divider is derived from this rate.
+
+  mediatek,pad-select:
+    type: int
+    default: 0
+    description: PAD_SEL routing index for the controller pads.

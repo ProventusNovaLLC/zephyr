@@ -205,6 +205,18 @@
         clock-frequency = <26000000>;
 		status = "disabled";
 	};
+
+	spi1: spi@11011800 {
+		compatible = "mediatek,mt8391-spi";
+		reg = <0x11011800 0x100>;
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_SPI 460 IRQ_TYPE_LEVEL_HIGH IRQ_DEFAULT_PRIORITY>;
+		clock-frequency = <208000000>;
+		mediatek,pad-select = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
 /*
 	i2s: i2s@10b10000 {
 		compatible = "mediatek,mt8370-i2s";
