@@ -28,4 +28,26 @@
 					 <PINMUX_PIN_110__FUNC_I0_I2SIN_D0>;
 		};
 	};
+
+	/* SPI1 to the SX1262 LoRa radio 1. On this SoC pads 73-76 function 1
+	 * are SPIM1 CSB/CLK/MOSI/MISO (mirrors the proven Linux devicetree;
+	 * the generated macro header carries SPIM1 names on other pads, so
+	 * raw pin/function values are used). Pad 73 stays function 0 (GPIO):
+	 * chip select is software-driven via cs-gpios. Pads 108-110 are the
+	 * radio control lines NRESET/BUSY/DIO1, function 0 (GPIO).
+	 */
+	spi1_default: spi1_default {
+		group1 {
+			pinmux = <(MTK_PIN_NO(73) | 0)>,
+					 <(MTK_PIN_NO(74) | 1)>,
+					 <(MTK_PIN_NO(75) | 1)>,
+					 <(MTK_PIN_NO(76) | 1)>;
+		};
+
+		lora_ctl {
+			pinmux = <(MTK_PIN_NO(108) | 0)>,
+					 <(MTK_PIN_NO(109) | 0)>,
+					 <(MTK_PIN_NO(110) | 0)>;
+		};
+	};
 };

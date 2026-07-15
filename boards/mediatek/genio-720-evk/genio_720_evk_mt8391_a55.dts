@@ -8,6 +8,7 @@
 
 #include <mem.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/lora/sx126x.h>
 #include <mediatek/mt8391.dtsi>
 #include "genio_720_evk-pinctrl.dtsi"
 
@@ -18,6 +19,7 @@
 	aliases {
 		trigger = &trigger_gpio;
 		response = &response_gpio;
+		lora0 = &lora0;
 	};
 
 	chosen {
@@ -83,6 +85,33 @@
 
 &gpio32_63 {
 	status = "okay";
+};
+
+&gpio64_95 {
+	status = "okay";
+};
+
+&gpio96_127 {
+	status = "okay";
+};
+
+&spi1 {
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpio64_95 9 GPIO_ACTIVE_LOW>;   /* pad 73 */
+	status = "okay";
+
+	lora0: sx1262@0 {
+		compatible = "semtech,sx1262";
+		reg = <0>;
+		spi-max-frequency = <2000000>;
+		reset-gpios = <&gpio96_127 12 GPIO_ACTIVE_LOW>;  /* pad 108 NRESET */
+		busy-gpios = <&gpio96_127 13 GPIO_ACTIVE_HIGH>;  /* pad 109 */
+		dio1-gpios = <&gpio96_127 14 GPIO_ACTIVE_HIGH>;  /* pad 110 */
+		dio2-tx-enable;
+		dio3-tcxo-voltage = <SX126X_DIO3_TCXO_1V8>;
+		tcxo-power-startup-delay-ms = <10>;
+	};
 };
 
 /*

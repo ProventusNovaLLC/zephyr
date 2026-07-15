@@ -92,12 +92,21 @@
 		status = "okay";
 	};
 
-	eint: eint@1000b000 {
+	/* MT8391 (mt8189 silicon) splits EINT into five per-pad-cluster
+	 * instances (Linux "apirq": e/s/w/c/n) sharing one GIC interrupt,
+	 * with a per-pad (instance, index) mapping - pad number does NOT
+	 * equal EINT line. This node describes instance 0 ("eint-e",
+	 * e.g. pads 108-110 map to local indices 44-46). The GPIO driver
+	 * currently emulates edge interrupts by polling DIN and does not
+	 * touch EINT registers; a future dedicated-EINT port must add the
+	 * pad translation and per-instance handling before use.
+	 */
+	eint: eint@11ce0000 {
 		compatible = "mediatek,mt8391-eint";
-		reg = <0x1000b000 0x1000>;
+		reg = <0x11ce0000 0x1000>;
 		interrupt-parent = <&gic>;
-		interrupts = <GIC_SPI 235 IRQ_TYPE_LEVEL_HIGH IRQ_DEFAULT_PRIORITY>;
-		num-lines = <177>;	/* 225 */
+		interrupts = <GIC_SPI 239 IRQ_TYPE_LEVEL_HIGH IRQ_DEFAULT_PRIORITY>;
+		num-lines = <64>;	/* instance-local indices */
 		#address-cells = <1>;
 		#size-cells = <0>;
 		status = "okay";
@@ -203,6 +212,18 @@
 		interrupt-parent = <&gic>;
 		interrupts = <GIC_SPI 457 IRQ_TYPE_LEVEL_LOW IRQ_DEFAULT_PRIORITY>;
         clock-frequency = <26000000>;
+		status = "disabled";
+	};
+
+	spi1: spi@11011800 {
+		compatible = "mediatek,mt8391-spi";
+		reg = <0x11011800 0x100>;
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_SPI 460 IRQ_TYPE_LEVEL_HIGH IRQ_DEFAULT_PRIORITY>;
+		clock-frequency = <208000000>;
+		mediatek,pad-select = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
 		status = "disabled";
 	};
 /*
