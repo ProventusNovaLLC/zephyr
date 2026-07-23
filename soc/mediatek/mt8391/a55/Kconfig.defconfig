@@ -17,9 +17,10 @@ config GIC_SAFE_CONFIG
 	default y
 
 # Cover the peripheral SPIs actually used on this SoC: the SPI1
-# controller interrupt is GIC INTID 492 (SPI 460).
+# controller interrupt is GIC INTID 492 (SPI 460), and the Jailhouse
+# ivshmem INTx block for the inmate sits at INTIDs 608-611.
 config NUM_IRQS
-	default 512
+	default 640
 
 # The ARM generic timer runs at 13 MHz on this SoC (Linux arch_timer:
 # "cp15 timer(s) running at 13.00MHz"). The previous 8 MHz value made

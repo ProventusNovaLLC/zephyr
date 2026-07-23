@@ -26,6 +26,7 @@
 		zephyr,console = &uart1;
 		zephyr,shell-uart = &uart1;
 		zephyr,sram = &dram;
+		zephyr,pcie-controller = &pcie;
 	};
 
 	trigger {
@@ -72,6 +73,42 @@
 
 	dram: memory@8000 {
 		reg = <0x00008000 DT_SIZE_M(2)>;
+	};
+
+	/* Jailhouse virtual PCI (ivshmem IPC to the Linux root cell).
+	 * The ECAM window and the BAR aperture are hypervisor-emulated:
+	 * accesses trap to the Jailhouse device model, no real hardware
+	 * backs either address. INTx pins map to the GIC SPIs granted to
+	 * this cell (vpci_irq_base 576 -> INTIDs 608-611).
+	 */
+	pcie: pcie@20000000 {
+		compatible = "pci-host-ecam-generic";
+		device_type = "pci";
+		reg = <0x20000000 0x100000>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+		ranges = <0x02000000 0x0 0xff000000 0xff000000 0x0 0x100000>;
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0x0 0x0 0x0 0x7>;
+		interrupt-map = <0x0 0x0 0x0 1 &gic GIC_SPI 576 IRQ_TYPE_EDGE IRQ_DEFAULT_PRIORITY
+				 0x0 0x0 0x0 2 &gic GIC_SPI 577 IRQ_TYPE_EDGE IRQ_DEFAULT_PRIORITY
+				 0x0 0x0 0x0 3 &gic GIC_SPI 578 IRQ_TYPE_EDGE IRQ_DEFAULT_PRIORITY
+				 0x0 0x0 0x0 4 &gic GIC_SPI 579 IRQ_TYPE_EDGE IRQ_DEFAULT_PRIORITY>;
+		bus-range = <0x0 0x0>;
+		status = "okay";
+
+		ivshmem0: ivshmem@0 {
+			compatible = "qemu,ivshmem";
+			ivshmem-v2;
+			vendor-id = <0x110A>;
+			device-id = <0x4106>;
+			class-rev = <0xFF000000>;      /* PCI_CLASS_OTHERS | PROTO_UNDEFINED */
+			class-rev-mask = <0xFFFFFF00>;
+			interrupt-parent = <&pcie>;
+			interrupts = <1 2 3 4>;
+			reg = <0x0 0x0 0x0 0x0 0x1>;
+			status = "okay";
+		};
 	};
 };
 
