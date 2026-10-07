@@ -180,9 +180,12 @@
 		};
 	};
 
+	/* UART0..3 addresses verified against the Linux mt8189.dtsi and the
+	 * live board 2026-10-06.
+	 */
 	uart0: uart@11001000 {
 		compatible = "mediatek,mt8391-uart";
-		reg = <11001000 0x1000>;
+		reg = <0x11001000 0x1000>;
 		interrupt-parent = <&gic>;
 		interrupts = <GIC_SPI 397 IRQ_TYPE_LEVEL_LOW IRQ_DEFAULT_PRIORITY>;
         clock-frequency = <26000000>;
@@ -198,18 +201,18 @@
 		status = "disabled";
 	};
 
-	uart2: uart@11001300 {
+	uart2: uart@11003000 {
 		compatible = "mediatek,mt8391-uart";
-		reg = <0x11001300 0x1000>;
+		reg = <0x11003000 0x1000>;
 		interrupt-parent = <&gic>;
 		interrupts = <GIC_SPI 399 IRQ_TYPE_LEVEL_LOW IRQ_DEFAULT_PRIORITY>;
         clock-frequency = <26000000>;
 		status = "disabled";
 	};
 
-	uart3: uart@11001400 {
+	uart3: uart@11004000 {
 		compatible = "mediatek,mt8391-uart";
-		reg = <0x11001400 0x1000>;
+		reg = <0x11004000 0x1000>;
 		interrupt-parent = <&gic>;
 		interrupts = <GIC_SPI 457 IRQ_TYPE_LEVEL_LOW IRQ_DEFAULT_PRIORITY>;
         clock-frequency = <26000000>;
