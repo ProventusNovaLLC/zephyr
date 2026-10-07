@@ -304,6 +304,11 @@ static int ublox_f9p_init(const struct device *dev)
 			      UBX_FRAME_SZ(version_get.payload_size),
 			      (void *)&ver, sizeof(ver));
 	if (err != 0) {
+		if (IS_ENABLED(CONFIG_GNSS_U_BLOX_F9P_PASSIVE)) {
+			LOG_WRN("No answer to MON-VER (%d): passive mode, parsing the stream as-is",
+				err);
+			return 0;
+		}
 		LOG_ERR("Failed to get Modem Version info: %d", err);
 		return err;
 	}
