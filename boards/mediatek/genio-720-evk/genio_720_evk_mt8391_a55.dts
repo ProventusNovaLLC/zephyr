@@ -119,6 +119,21 @@
 	status = "okay";
 };
 
+/* GNSS receiver (u-blox NEO-F9P-15B) on UART2. The hub only LISTENS on this
+ * port: on the ELT0359 carrier its RX pin cannot be driven (see session.md
+ * 2026-10-06), so the receiver is configured over I2C from Linux. */
+&uart2 {
+	pinctrl-0 = <&uart2_default>;
+	pinctrl-names = "default";
+	current-speed = <38400>;
+	status = "okay";
+
+	gnss0: gnss {
+		compatible = "u-blox,f9p";
+		fix-rate = <1000>;
+	};
+};
+
 
 &gpio32_63 {
 	status = "okay";

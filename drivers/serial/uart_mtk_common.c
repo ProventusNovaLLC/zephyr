@@ -621,6 +621,12 @@ int uart_mtk_init(const struct device *dev)
 	}
 #endif
 
+	/* Mask all sources before the GIC line is enabled: on a ROOTSHARED UART
+	 * the inmate inherits Linux's IER, and a stale bit would storm the ISR.
+	 * Done after configure, which leaves DLAB clear (IER shares 0x4 with DLM).
+	 */
+	sys_write32(0, DEVICE_MMIO_GET(dev) + UART_OFFSET_IER);
+
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 	uart_config->irq_config_func(dev);
 #endif

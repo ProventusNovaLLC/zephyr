@@ -42,6 +42,13 @@ config GNSS_U_BLOX_F9P_NAV_MODE_HIGH_DYN_BIKE
 
 endchoice
 
+config GNSS_U_BLOX_F9P_PASSIVE
+	bool "Accept a receiver that cannot be configured over this UART"
+	help
+	  When the version poll at init gets no answer, keep the driver up and
+	  parse whatever the receiver streams (NAV-PVT enabled elsewhere, e.g.
+	  over I2C or persisted in the receiver) instead of failing init.
+
 if GNSS_SATELLITES
 
 config GNSS_U_BLOX_F9P_SATELLITES_COUNT

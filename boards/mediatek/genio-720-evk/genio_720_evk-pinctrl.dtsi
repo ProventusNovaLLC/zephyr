@@ -20,6 +20,14 @@
 		};
 	};
 
+	/* UART2 -> Raspberry Pi HAT pins 8 (TX) / 10 (RX) with J470/J471 at 2-3. */
+	uart2_default: uart2_default {
+		group1 {
+			pinmux = <PINMUX_PIN_35__FUNC_O_UTXD2>,
+					 <PINMUX_PIN_36__FUNC_I1_URXD2>;
+		};
+	};
+
 	i2s_default: i2s_default {
 		group1 {
 			pinmux = <PINMUX_PIN_107__FUNC_B0_I2SIN_MCK>,
