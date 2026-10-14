@@ -20,6 +20,7 @@
 		trigger = &trigger_gpio;
 		response = &response_gpio;
 		lora0 = &lora0;
+		lora1 = &lora1;
 	};
 
 	chosen {
@@ -150,7 +151,13 @@
 &spi1 {
 	pinctrl-0 = <&spi1_default>;
 	pinctrl-names = "default";
-	cs-gpios = <&gpio64_95 9 GPIO_ACTIVE_LOW>;   /* pad 73 */
+	/* Software chip selects: pad 73 = radio 1, pad 106 = radio 2. Both
+	 * SX1262 share SCLK/MOSI/MISO; each SPI transaction is self-framed
+	 * (CS low, command, CS high) so the two radios interleave at the
+	 * command level under the SPI context lock.
+	 */
+	cs-gpios = <&gpio64_95 9 GPIO_ACTIVE_LOW>,    /* pad 73  */
+		   <&gpio96_127 10 GPIO_ACTIVE_LOW>;  /* pad 106 */
 	status = "okay";
 
 	lora0: sx1262@0 {
@@ -160,6 +167,22 @@
 		reset-gpios = <&gpio96_127 12 GPIO_ACTIVE_LOW>;  /* pad 108 NRESET */
 		busy-gpios = <&gpio96_127 13 GPIO_ACTIVE_HIGH>;  /* pad 109 */
 		dio1-gpios = <&gpio96_127 14 GPIO_ACTIVE_HIGH>;  /* pad 110 */
+		dio2-tx-enable;
+		dio3-tcxo-voltage = <SX126X_DIO3_TCXO_1V8>;
+		tcxo-power-startup-delay-ms = <10>;
+	};
+
+	/* Radio 2 (Wio-SX1262 like radio 1): the co-located receive radio of
+	 * the dual-radio study. Pads 103-106 are free of I2SIN0 in the Linux
+	 * devicetree and granted to the hub cell by the Jailhouse config.
+	 */
+	lora1: sx1262@1 {
+		compatible = "semtech,sx1262";
+		reg = <1>;
+		spi-max-frequency = <2000000>;
+		reset-gpios = <&gpio96_127 9 GPIO_ACTIVE_LOW>;   /* pad 105 NRESET */
+		busy-gpios = <&gpio96_127 8 GPIO_ACTIVE_HIGH>;   /* pad 104 */
+		dio1-gpios = <&gpio96_127 7 GPIO_ACTIVE_HIGH>;   /* pad 103 */
 		dio2-tx-enable;
 		dio3-tcxo-voltage = <SX126X_DIO3_TCXO_1V8>;
 		tcxo-power-startup-delay-ms = <10>;

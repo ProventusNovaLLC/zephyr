@@ -57,5 +57,15 @@
 					 <(MTK_PIN_NO(109) | 0)>,
 					 <(MTK_PIN_NO(110) | 0)>;
 		};
+
+		/* Radio 2 control lines DIO1/BUSY/NRESET/CS on pads 103-106,
+		 * function 0 (GPIO); CS is software-driven via cs-gpios.
+		 */
+		lora1_ctl {
+			pinmux = <(MTK_PIN_NO(103) | 0)>,
+					 <(MTK_PIN_NO(104) | 0)>,
+					 <(MTK_PIN_NO(105) | 0)>,
+					 <(MTK_PIN_NO(106) | 0)>;
+		};
 	};
 };
