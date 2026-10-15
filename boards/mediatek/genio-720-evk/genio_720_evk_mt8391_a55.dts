@@ -175,10 +175,14 @@
 	/* Radio 2 (Wio-SX1262 like radio 1): the co-located receive radio of
 	 * the dual-radio study. Pads 103-106 are free of I2SIN0 in the Linux
 	 * devicetree and granted to the hub cell by the Jailhouse config.
+	 * Disabled by default: the loramac-node backend asserts at build time
+	 * on more than one SX126x node, so apps that drive both radios enable
+	 * it from their board overlay together with the LBM backend.
 	 */
 	lora1: sx1262@1 {
 		compatible = "semtech,sx1262";
 		reg = <1>;
+		status = "disabled";
 		spi-max-frequency = <2000000>;
 		reset-gpios = <&gpio96_127 9 GPIO_ACTIVE_LOW>;   /* pad 105 NRESET */
 		busy-gpios = <&gpio96_127 8 GPIO_ACTIVE_HIGH>;   /* pad 104 */
