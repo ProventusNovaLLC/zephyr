@@ -317,6 +317,11 @@ int lbm_lora_recv_async(const struct device *dev, lora_recv_cb cb, void *user_da
 	data->rx_state.async.rx_cb = cb;
 	data->rx_state.async.user_data = user_data;
 
+	/* An IRQ left latched from before (a receive that completed while the
+	 * modem was being released) would hold DIO1 high and hide the edge of the
+	 * next frame; clear it before arming. */
+	(void)ral_clear_irq_status(&config->ralf.ral, RAL_IRQ_ALL);
+
 	/* Start the reception in continuous mode */
 	status = ral_set_rx(&config->ralf.ral, RAL_RX_TIMEOUT_CONTINUOUS_MODE);
 	if (status != RAL_STATUS_OK) {
@@ -407,7 +412,7 @@ static int op_done_sync_rx(const struct device *dev)
 	return ret;
 }
 
-static void op_done_async_rx(const struct device *dev)
+static void op_done_async_rx(const struct device *dev, bool error_irq)
 {
 	const struct lbm_lora_config_common *config = dev->config;
 	struct lbm_lora_data_common *data = dev->data;
@@ -429,6 +434,14 @@ static void op_done_async_rx(const struct device *dev)
 	status = ral_get_lora_rx_pkt_status(&config->ralf.ral, &pkt_status);
 	if (status != RAL_STATUS_OK) {
 		LOG_WRN("Failed to query packet signal stats");
+	}
+
+	/* A frame that failed its CRC or header check is reported with size 0 and
+	 * the packet's signal numbers, so the user can count interference without
+	 * ever treating the buffer contents as a received frame. */
+	if (error_irq) {
+		LOG_DBG("RX error frame (%u bytes dropped)", size);
+		size = 0;
 	}
 
 	rssi = IS_ENABLED(CONFIG_LORA_BASICS_MODEM_RSSI_REPORT_TYPE_PACKET)
@@ -456,6 +469,14 @@ static void op_done_work_handler(struct k_work *work)
 
 	LOG_DBG("%d", data->modem_mode);
 
+	/* Read and reset the IRQ state first: the error flags decide whether an
+	 * asynchronous receive is a frame or interference, and clearing before the
+	 * user callback keeps DIO1 low again as early as possible.
+	 */
+	(void)ral_get_irq_status(&config->ralf.ral, &irq_state);
+	(void)ral_clear_irq_status(&config->ralf.ral, RAL_IRQ_ALL);
+	error_irq = irq_state & (RAL_IRQ_RX_TIMEOUT | RAL_IRQ_RX_HDR_ERROR | RAL_IRQ_RX_CRC_ERROR);
+
 	switch (data->modem_mode) {
 	case MODE_SLEEP:
 		LOG_WRN("Unexpected modem mode (%d)", data->modem_mode);
@@ -481,18 +502,13 @@ static void op_done_work_handler(struct k_work *work)
 		if (status != RAL_STATUS_OK) {
 			LOG_WRN("RAL handle RX done failed (%d)", status);
 		}
-		op_done_async_rx(dev);
+		op_done_async_rx(dev, error_irq);
 		/* Don't release the modem here, RX continues */
 		break;
 	case MODE_CAD:
 		LOG_DBG("CAD complete (TBC)");
 		break;
 	}
-
-	/* Get and reset the current IRQ state */
-	(void)ral_get_irq_status(&config->ralf.ral, &irq_state);
-	(void)ral_clear_irq_status(&config->ralf.ral, RAL_IRQ_ALL);
-	error_irq = irq_state & (RAL_IRQ_RX_TIMEOUT | RAL_IRQ_RX_HDR_ERROR | RAL_IRQ_RX_CRC_ERROR);
 
 	/* Release the modem before running the user callback so that the notified thread can
 	 * immediately start another operation before the work item terminates. This requires
